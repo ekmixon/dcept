@@ -18,7 +18,7 @@ class ConfigReader():
 
 	def load(self, path):
 		parser = ConfigParser.SafeConfigParser()
-		
+
 		try:
 			cfg_str = '[root]\n' + open(path, 'r').read()
 			cfg_fp = StringIO.StringIO(cfg_str)
@@ -27,10 +27,13 @@ class ConfigReader():
 
 			self.__dict__.update(parser.items("root"))
 
-		except (ConfigParser.ParsingError) as e:
+		except ConfigParser.ParsingError as e:
 			error = str(e)
 			line = error[error.find("[line")+5:error.find("]")].strip()
-			raise ConfigParser.ParsingError("Failed to parse config file. Error on line: " + line)
+			raise ConfigParser.ParsingError(
+				f"Failed to parse config file. Error on line: {line}"
+			)
+
 
 		self.checkConfig()
 
@@ -66,11 +69,17 @@ class ConfigReader():
 		if not self.honey_username:
 			raise ConfigError("You must configure a honeytoken username")
 
-		if self.log_level.upper() not in {"CRITICAL","ERROR","WARNING","INFO","DEBUG","NOTSET"}:
+		if self.log_level.upper() not in {
+			"CRITICAL",
+			"ERROR",
+			"WARNING",
+			"INFO",
+			"DEBUG",
+			"NOTSET",
+		}:
 			raise ConfigError("Invalid setting for log level")
-		else:
-			level = logging.getLevelName(self.log_level.upper())
-			logging.getLogger().setLevel(level)
+		level = logging.getLevelName(self.log_level.upper())
+		logging.getLogger().setLevel(level)
 			
 			
 

@@ -30,17 +30,17 @@ class GenerationServer:
 	def __init__(self, hostname="", http_port=80, sqlite_path='/opt/dcept/var/honeytoken.db'):
 		http_port = int(http_port)
 		server_class = ThreadedHTTPServer #BaseHTTPServer.HTTPServer
-		
+
 		global gsHandle
 		gsHandle = self
-		
+
 		self.sqlite_path = sqlite_path 
 		self.conn = None
 		self.initDatabase()
 
 		# Only master node should run the generation server 
 		if not config.master_node:
-			
+
 			logging.info("Database contains %d generated passwords" % self.getRecordCount())
 
 			self.httpd = server_class((hostname, http_port), HttpHandler)
@@ -96,19 +96,14 @@ class GenerationServer:
 		c.execute("SELECT * FROM logs WHERE password=?" , (password,))
 		row = c.fetchone()
 
-		if row == None:
-			return None
-		return row
+		return None if row is None else row
 
 
 	def getPasswords(self):
 		c = self.conn.cursor()
 		c.execute("SELECT password FROM logs ORDER BY date DESC")
 
-		passwords = []
-		for i in c.fetchall():
-			passwords.append(i[0])
-		return passwords
+		return [i[0] for i in c.fetchall()]
 
 	def getRecordCount(self):
 		c = self.conn.cursor()
@@ -119,7 +114,7 @@ class HttpHandler(BaseHTTPRequestHandler):
 
 	# Generation requests from endpoints are always GET requests and must contain 
 	# the honeytoken_param_name parameter.
-	def do_GET(s):
+	def do_GET(self):
 
 		global gsHandle
 
@@ -127,12 +122,12 @@ class HttpHandler(BaseHTTPRequestHandler):
 		#	s.send_response(404)
 		#	return
 
-		s.send_response(200)
-		s.send_header("Content-type", "text/json")
-		s.end_headers()
+		self.send_response(200)
+		self.send_header("Content-type", "text/json")
+		self.end_headers()
 
 		#print s.path
-		qs = urlparse.urlparse(s.path).query
+		qs = urlparse.urlparse(self.path).query
 		qs = urlparse.parse_qs(qs)
 		#print qs
 		machine = ""
@@ -140,16 +135,15 @@ class HttpHandler(BaseHTTPRequestHandler):
 			machine = qs[config.honeytoken_param_name][0]
 		except:
 			return
-		print "Request from IP: %s workstation: %s" % (s.client_address[0], machine)
+		global gsHandle
 
-		domain = config.domain 
+		domain = config.domain
 		username = config.honey_username
 
 		password = gsHandle.genPass()
 		jSONstring = "{'d':'%s','u':'%s',p:'%s'}" % (domain, username, password)
-		s.wfile.write(jSONstring)
-		print "Sent:"+jSONstring
-
+		self.wfile.write(jSONstring)
+		global gsHandle
       # Log transaction
 		c = gsHandle.conn.cursor()
 		c.execute("INSERT INTO logs VALUES (?,?,?,?,?)", (datetime.now(), domain, username, machine, password))
@@ -159,9 +153,9 @@ class HttpHandler(BaseHTTPRequestHandler):
 	# DCEPT to DCEPT communication happens via POST requests.
 	# Example for dcepttest: POST /notify
 	# u=Administrator&d=ALLSAFE.LAN&t=64118a956797600c6e1239f1cf9c8db4ae780f0a1d0bc8b3a0e12de736a14792f17cb58671e42813fbd522e22e021c5d6924b7b114064889
-	def do_POST(s):
-		length = int(s.headers['content-length'])
-		postvars = cgi.parse_qs(s.rfile.read(length), keep_blank_values=1)
+	def do_POST(self):
+		length = int(self.headers['content-length'])
+		postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
 
 		logging.debug(postvars)
 
@@ -169,15 +163,15 @@ class HttpHandler(BaseHTTPRequestHandler):
 			username     = postvars['u'][0]
 			domain		 = postvars['d'][0]
 			encTimestamp = postvars['t'][0]
-		except:		
-			s.send_response(500)
-			s.end_headers()	
+		except:
+			self.send_response(500)
+			self.end_headers()
 			return		
 
 		cracker.enqueueJob(username, domain, encTimestamp, dcept.passwordHit)		
 
-		s.send_response(200)
-		s.end_headers()
+		self.send_response(200)
+		self.end_headers()
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""

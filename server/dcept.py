@@ -35,10 +35,10 @@ class DceptError(Exception):
 def kerbsniff(interface, username, domain, realm):
 
 	logging.info("kerbsniff: Looking for %s\%s on %s" % (domain,username,interface))
-	
+
 	filtered_cap = pyshark.LiveCapture(interface, bpf_filter='tcp port 88')
 	packet_iterator = filtered_cap.sniff_continuously
-	
+
 	# Loop infinitely over packets if in continuous mode
 	for packet in packet_iterator():
 
@@ -53,8 +53,8 @@ def kerbsniff(interface, username, domain, realm):
 			encTimestamp = kerb_handler(kp,domain,username)
 		except KeyError as e:
 			pass
-		
-		
+
+
 
 		# Only attempt to decrypt a password or notify master if we find an encrypted timestamp
 		if encTimestamp:
@@ -66,7 +66,7 @@ def kerbsniff(interface, username, domain, realm):
 
 
 def notifyMaster(username, domain, encTimestamp):
-	url = 'http://%s/notify' % (config.master_node)
+	url = f'http://{config.master_node}/notify'
 	values = {	'u' : username,
 					'd' : domain,
 					't' : encTimestamp
@@ -168,16 +168,23 @@ def main():
 	 | |__| | |____| |____| |      | |   
 	 |_____/ \_____|______|_|      |_|
 """
- 
-	print banner
-	
+
+	banner = """
+	  _____   _____ ______ _____ _______ 
+	 |  __ \ / ____|  ____|  __ |__   __|
+	 | |  | | |    | |__  | |__) | | |   
+	 | |  | | |    |  __| |  ___/  | |   
+	 | |__| | |____| |____| |      | |   
+	 |_____/ \_____|______|_|      |_|
+"""
+
 	try:
 		# Read the configuration file
 		config.load("/opt/dcept/dcept.cfg")
 	except (ConfigParser.Error, ConfigError) as e:
 		logging.error(e)
 		raise DceptError()
-	
+
 	# Server roles for multi-server topology
 	if not config.master_node:
 		logging.info('Server configured as master node')
@@ -193,7 +200,7 @@ def main():
 
 	logging.info('Starting DCEPT...')
 
-	# Only master node should run the generation server and cracker 
+	# Only master node should run the generation server and cracker
 	if not config.master_node: # (Master Node)
 
 		# Spawn and start the password generation server
@@ -202,7 +209,10 @@ def main():
 			genServer = GenerationServer.GenerationServer(config.honeytoken_host, config.honeytoken_port)
 		except socket.error as e:
 			logging.error(e)
-			logging.error("Failed to bind honeytoken HTTP server to address %s on port %s" % (config.honeytoken_host, config.honeytoken_port))
+			logging.error(
+				f"Failed to bind honeytoken HTTP server to address {config.honeytoken_host} on port {config.honeytoken_port}"
+			)
+
 			raise DceptError()
 
 		# Initialize the cracker
@@ -218,7 +228,7 @@ def main():
 	try:
 		kerbsniff(config.interface,config.honey_username, config.domain, config.realm)
 	except pyshark.capture.capture.TSharkCrashException:
-		
+
 		logging.error(message)
 		raise DceptError(message)
 		
